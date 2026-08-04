@@ -1,10 +1,11 @@
-const CACHE_NAME = "opening-checklist-v1";
+const CACHE_NAME = "opening-checklist-v2";
 const ASSETS = [
   "./",
   "./index.html",
   "./admin.html",
   "./styles.css",
   "./app.js",
+  "./pdf-loader.js",
   "./admin.js",
   "./config.js",
   "./manifest.webmanifest",

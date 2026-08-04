@@ -534,8 +534,16 @@
       }
     }
 
-    if (!window.jspdf?.jsPDF) {
-      showToast("Library PDF belum termuat. Periksa koneksi internet lalu coba lagi.", "error");
+    const pdfReady = typeof window.ensurePdfLibraries === "function"
+      ? await window.ensurePdfLibraries()
+      : Boolean(window.jspdf?.jsPDF && window.jspdf.jsPDF.API?.autoTable);
+
+    if (!pdfReady) {
+      if (options.silentValidation) {
+        showToast("Checklist tersimpan, tetapi PDF belum dibuat otomatis. Tekan Export PDF lalu pilih Simpan sebagai PDF.", "error", 6500);
+        return;
+      }
+      exportWithPrintDialog(data);
       return;
     }
 
@@ -608,6 +616,119 @@
     const filename = `Opening_Checklist_${safeFilename(data.openingDate || "tanggal")}_${safeFilename(fileSuffix)}.pdf`;
     doc.save(filename);
     if (!options.silentValidation) showToast("PDF berhasil dibuat.", "success");
+  }
+
+  function exportWithPrintDialog(data) {
+    const existing = document.getElementById("pdf-print-frame");
+    existing?.remove();
+
+    const frame = document.createElement("iframe");
+    frame.id = "pdf-print-frame";
+    frame.title = "Preview laporan PDF";
+    frame.style.position = "fixed";
+    frame.style.right = "0";
+    frame.style.bottom = "0";
+    frame.style.width = "1px";
+    frame.style.height = "1px";
+    frame.style.border = "0";
+    frame.style.opacity = "0";
+    frame.style.pointerEvents = "none";
+
+    const taskRows = data.tasks.map(task => `
+      <tr>
+        <td class="code">${escapeHtml(task.code)}</td>
+        <td>
+          <strong>${escapeHtml(task.text)}</strong>
+          <small>${escapeHtml(task.textEn || "")}</small>
+        </td>
+        <td class="answer ${task.answer === "no" ? "no" : "yes"}">${escapeHtml(task.answer ? task.answer.toUpperCase() : "-")}</td>
+        <td>${escapeHtml(task.note || "-")}</td>
+      </tr>
+    `).join("");
+
+    const signatureCards = signatureRoles.map(role => {
+      const signature = data.signatures?.[role.id] || {};
+      const image = typeof signature.image === "string" && signature.image.startsWith("data:image/")
+        ? `<img src="${signature.image}" alt="Tanda tangan ${escapeHtml(role.label)}">`
+        : `<div class="signature-empty"></div>`;
+      return `
+        <div class="signature-card-print">
+          ${image}
+          <div class="signature-name-print">${escapeHtml(signature.name || "Belum diisi")}</div>
+          <strong>${escapeHtml(role.label)}</strong>
+        </div>
+      `;
+    }).join("");
+
+    const reportHtml = `<!doctype html>
+      <html lang="id">
+      <head>
+        <meta charset="utf-8">
+        <title>Opening Checklist ${escapeHtml(data.openingDate || "")}</title>
+        <style>
+          @page { size: A4 portrait; margin: 12mm; }
+          * { box-sizing: border-box; }
+          body { margin: 0; color: #17211f; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+          h1 { margin: 0; text-align: center; font-size: 17pt; }
+          .store { margin: 3px 0 14px; text-align: center; font-size: 11pt; font-weight: 700; }
+          .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 18px; margin-bottom: 10px; }
+          .meta div { border-bottom: 1px solid #b9c4c1; padding: 4px 0; }
+          table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          th, td { border: 1px solid #8f9b98; padding: 5px; vertical-align: top; overflow-wrap: anywhere; }
+          th { background: #0f766e; color: white; font-size: 8pt; }
+          th:nth-child(1), td.code { width: 8%; text-align: center; }
+          th:nth-child(2) { width: 52%; }
+          th:nth-child(3) { width: 12%; }
+          th:nth-child(4) { width: 28%; }
+          td small { display: block; margin-top: 3px; color: #5f6b68; font-size: 7.5pt; line-height: 1.3; }
+          td.answer { text-align: center; font-weight: 700; }
+          td.answer.no { color: #a3231d; }
+          .verification { margin-top: 11px; font-size: 11pt; }
+          .signatures { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 6px; }
+          .signature-card-print { min-height: 37mm; border: 1px solid #aab5b2; padding: 5px; text-align: center; break-inside: avoid; }
+          .signature-card-print img, .signature-empty { display: block; width: 100%; height: 22mm; object-fit: contain; }
+          .signature-name-print { min-height: 15px; margin: 2px 0; }
+          .footer { margin-top: 9px; display: flex; justify-content: space-between; color: #5f6b68; font-size: 7.5pt; }
+          tr, .meta, .signature-card-print { break-inside: avoid; }
+        </style>
+      </head>
+      <body>
+        <h1>FORM CHECKLIST OPENING</h1>
+        <div class="store">${escapeHtml(data.store || "Alam Sutera")}</div>
+        <div class="meta">
+          <div><strong>Tanggal:</strong> ${escapeHtml(formatDateId(data.openingDate))}</div>
+          <div><strong>PIC Opening:</strong> ${escapeHtml(data.picOpening || "-")}</div>
+          <div><strong>Waktu mulai:</strong> ${escapeHtml(data.openingTime || "-")}</div>
+          <div><strong>Status:</strong> ${escapeHtml(data.summary?.overallStatus || "-")}</div>
+        </div>
+        <table>
+          <thead><tr><th>No</th><th>To Do</th><th>Jawaban</th><th>Keterangan</th></tr></thead>
+          <tbody>${taskRows}</tbody>
+        </table>
+        <h2 class="verification">Verifikasi</h2>
+        <div class="signatures">${signatureCards}</div>
+        <div class="footer">
+          <span>Submission ID: ${escapeHtml(data.submissionId || "DRAFT")}</span>
+          <span>Dicetak: ${escapeHtml(new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date()))}</span>
+        </div>
+      </body>
+      </html>`;
+
+    frame.onload = () => {
+      window.setTimeout(() => {
+        try {
+          frame.contentWindow?.focus();
+          frame.contentWindow?.print();
+          showToast("Pilih printer 'Save as PDF' atau 'Simpan sebagai PDF'.", "success", 6500);
+        } catch (_) {
+          showToast("Preview PDF gagal dibuka. Izinkan dialog cetak pada browser lalu coba lagi.", "error", 6500);
+        }
+      }, 250);
+      window.setTimeout(() => frame.remove(), 60000);
+    };
+
+    document.body.appendChild(frame);
+    frame.srcdoc = reportHtml;
   }
 
   function updateProgress() {
