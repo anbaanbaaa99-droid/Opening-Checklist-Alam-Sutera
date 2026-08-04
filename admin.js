@@ -2,7 +2,7 @@
   "use strict";
   const CONFIG = window.OPENING_APP_CONFIG || {};
   let records = [];
-  let adminPin = "";
+  let adminPin = "223344";
 
   const $ = selector => document.querySelector(selector);
 
