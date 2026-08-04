@@ -1,0 +1,26 @@
+QUICK START
+
+1. Apps Script
+   - Buat Google Spreadsheet.
+   - Extensions > Apps Script.
+   - Salin apps-script/Code.gs.
+   - Script Properties:
+     SPREADSHEET_ID = ID Spreadsheet
+     ADMIN_PIN = PIN Anda
+   - Jalankan fungsi setup satu kali.
+   - Deploy > New deployment > Web app.
+   - Execute as: Me.
+   - Access: Anyone.
+   - Salin URL /exec.
+
+2. Frontend
+   - Buka frontend/config.js.
+   - Tempel URL /exec ke apiUrl.
+   - Upload ISI folder frontend ke root repository GitHub.
+   - Settings > Pages > Deploy from a branch > main > /(root).
+
+3. Tes
+   - Isi checklist sampai selesai.
+   - Kirim.
+   - Pastikan data masuk Google Sheets.
+   - Buka admin.html dan masukkan ADMIN_PIN.
