@@ -1,36 +1,12 @@
-const CACHE_NAME = "opening-checklist-v2";
+const CACHE_NAME = "alam-sutera-checklist-unified-v2";
 const ASSETS = [
-  "./",
-  "./index.html",
-  "./admin.html",
-  "./styles.css",
-  "./app.js",
-  "./pdf-loader.js",
-  "./admin.js",
-  "./config.js",
-  "./manifest.webmanifest",
-  "./assets/icon.svg"
+  "./", "./index.html", "./opening.html", "./closing.html", "./admin.html",
+  "./styles.css", "./app.js", "./admin.js", "./pdf-loader.js", "./config.js",
+  "./manifest.webmanifest", "./assets/icon.svg"
 ];
-
-self.addEventListener("install", event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))));
-  self.clients.claim();
-});
-
+self.addEventListener("install", event => { event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))); self.skipWaiting(); });
+self.addEventListener("activate", event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))); self.clients.claim(); });
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
-  event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-        return response;
-      })
-      .catch(() => caches.match(event.request).then(cached => cached || caches.match("./index.html")))
-  );
+  event.respondWith(fetch(event.request).then(response => { const copy = response.clone(); caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)); return response; }).catch(() => caches.match(event.request).then(cached => cached || caches.match("./index.html"))));
 });

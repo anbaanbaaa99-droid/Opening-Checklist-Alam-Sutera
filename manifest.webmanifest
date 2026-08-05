@@ -1,7 +1,7 @@
 {
-  "name": "Opening Checklist Alam Sutera",
-  "short_name": "Opening Checklist",
-  "description": "Checklist opening store Alam Sutera",
+  "name": "Checklist Operasional Alam Sutera",
+  "short_name": "Checklist ALS",
+  "description": "Opening dan Closing Checklist Alam Sutera",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f4f7f6",

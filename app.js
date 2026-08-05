@@ -1,23 +1,16 @@
 (() => {
   "use strict";
 
-  const CONFIG = window.OPENING_APP_CONFIG || {};
-  const DRAFT_KEY = "opening-checklist-draft-v1";
-  const QUEUE_KEY = "opening-checklist-queue-v1";
-  const DEVICE_KEY = "opening-checklist-device-id";
-
-  const checklistGroups = [
+  const CONFIG = window.CHECKLIST_APP_CONFIG || {};
+  const FORM_TYPE = String(document.body.dataset.checklistType || "opening").toLowerCase();
+  const FORMS = {
+    opening: { label: "Opening", code: "OPN", dateLabel: "Tanggal opening", timeLabel: "Waktu mulai", picLabel: "PIC Opening", groups: [
     {
       no: 1,
       title: "Masuk ruang Control Room",
       titleEn: "Go to the Control Room",
       tasks: [
-        {
-          code: "1A",
-          id: "control-room-keybox",
-          idText: "Membuka password key box di ruang kontrol untuk mengambil kunci admin key box dan facility key box.",
-          enText: "Open the passcode key box in the control room to retrieve the admin key box and facility key box keys."
-        }
+        { code: "1A", id: "control-room-keybox", idText: "Membuka password key box di ruang kontrol untuk mengambil kunci admin key box dan facility key box.", enText: "Open the passcode key box in the control room to retrieve the admin key box and facility key box keys." }
       ]
     },
     {
@@ -89,10 +82,94 @@
         { code: "9A", id: "lock-shutter-boxes", idText: "Setelah toko dibuka, Opening Assistant Group Leader berkeliling kembali untuk mengunci setiap shutter box di tiap lantai.", enText: "After the store opens, the Opening Assistant Group Leader makes another round to lock every shutter box on each floor." }
       ]
     }
-  ];
-
+  ] },
+    closing: { label: "Closing", code: "CLS", dateLabel: "Tanggal closing", timeLabel: "Waktu closing", picLabel: "PIC Closing", groups: [
+    {
+      no: 1,
+      title: "Pemeriksaan area backroom",
+      titleEn: "Check the Backroom Area",
+      tasks: [
+        { code: "1A", id: "check-backroom-area", idText: "Mengecek area backroom, mengunci dan mematikan lampu (kecuali CMD room) seluruh ruangan yang ada di backroom mulai dari B1 sampai lantai LG (Loading Dock & Pick Up Point Raisa).", enText: "Check the backroom area, lock and turn off the lights (except the CMD room) in all backroom areas from B1 to the LG floor, including the Loading Dock and Pick Up Point Raisa." }
+      ]
+    },
+    {
+      no: 2,
+      title: "Pemeriksaan selling floor dan akses area toko",
+      titleEn: "Check the Selling Floor and Store Access Areas",
+      tasks: [
+        { code: "2A", id: "check-selling-floor", idText: "Mengecek keseluruhan selling floor, memastikan sudah tidak ada customer di store, sekaligus mengunci Shutter Box, Glass Doors HBC, Sitting area outdoor, dan Delicafe.", enText: "Check the entire selling floor, make sure there are no customers in the store, and lock the Shutter Box, HBC Glass Doors, outdoor sitting area, and Delicafe." }
+      ]
+    },
+    {
+      no: 3,
+      title: "Memastikan utilitas dan peralatan produksi off",
+      titleEn: "Ensure Utilities and Production Equipment Are Off",
+      tasks: [
+        { code: "3A", id: "utilities-production-off", idText: "Memastikan gas, listrik, air, dan peralatan produksi dalam kondisi off.", enText: "Make sure gas, electricity, water, and production equipment are off." }
+      ]
+    },
+    {
+      no: 4,
+      title: "Memastikan toilet kosong",
+      titleEn: "Ensure the Toilet Is Empty",
+      tasks: [
+        { code: "4A", id: "ensure-toilet-empty", idText: "Memastikan tidak ada orang di toilet.", enText: "Make sure there is no one in the toilet." }
+      ]
+    },
+    {
+      no: 5,
+      title: "Penguncian area tertentu",
+      titleEn: "Lock Specific Areas",
+      tasks: [
+        { code: "5A", id: "lock-specific-areas", idText: "Mengunci storage HBC, MMD office, dan mengunci shutter Loading Bay.", enText: "Lock the HBC storage, MMD office, and the Loading Bay shutter." }
+      ]
+    },
+    {
+      no: 6,
+      title: "Mematikan peralatan elektronik di dalam office",
+      titleEn: "Turn Off Electronic Equipment in the Office",
+      tasks: [
+        { code: "6A", id: "turn-off-photocopy", idText: "Mematikan mesin photocopy.", enText: "Turn off the photocopy machines." },
+        { code: "6B", id: "turn-off-computer-screens", idText: "Mematikan semua layar komputer.", enText: "Turn off all computer screens." },
+        { code: "6C", id: "ensure-all-rooms-locked", idText: "Mengecek dan memastikan semua room dalam keadaan terkunci.", enText: "Check and ensure all rooms are in a locked condition." },
+        { code: "6D", id: "ensure-it-room-locked", idText: "Mengecek dan memastikan IT room dalam keadaan terkunci.", enText: "Check and ensure the IT room is in a locked condition." },
+        { code: "6E", id: "store-master-keys-sq-box", idText: "Kunci master box dan kunci shutter dibawa untuk disimpan di SQ box.", enText: "Bring the master box key and shutter key to be stored in the SQ box." },
+        { code: "6F", id: "turn-off-ac-lights-office", idText: "Mematikan seluruh AC dan lampu di office management dan meeting room.", enText: "Turn off all air conditioners and lights in the Management Office and Meeting Room." }
+      ]
+    },
+    {
+      no: 7,
+      title: "Menutup pintu masuk office",
+      titleEn: "Close the Office Entrance Door",
+      tasks: [
+        { code: "7A", id: "close-office-door", idText: "Menutup pintu masuk office.", enText: "Close the office entrance door." }
+      ]
+    },
+    {
+      no: 8,
+      title: "Mengisi form checklist closing",
+      titleEn: "Fill Out the Closing Checklist",
+      tasks: [
+        { code: "8A", id: "fill-closing-checklist", idText: "Mengisi form checklist closing.", enText: "Fill out the closing checklist form." }
+      ]
+    },
+    {
+      no: 9,
+      title: "Mengembalikan kunci admin key box",
+      titleEn: "Return the Admin Key Box Key",
+      tasks: [
+        { code: "9A", id: "return-admin-keybox-key", idText: "Meletakkan kunci keybox admin ke dalam keybox di ruang Control Room.", enText: "Put the admin key box key back into the key box in the Control Room." }
+      ]
+    }
+  ] }
+  };
+  const FORM = FORMS[FORM_TYPE] || FORMS.opening;
+  const DRAFT_KEY = `alam-sutera-${FORM_TYPE}-draft-v2`;
+  const QUEUE_KEY = "alam-sutera-checklist-queue-v2";
+  const DEVICE_KEY = "alam-sutera-checklist-device-id";
+  const checklistGroups = FORM.groups;
   const signatureRoles = [
-    { id: "pic", label: "PIC Opening" },
+    { id: "pic", label: FORM.picLabel },
     { id: "facility", label: "Facility" },
     { id: "security", label: "Security" },
     { id: "adminManager", label: "Admin Manager" }
@@ -106,8 +183,15 @@
   const $$ = selector => [...document.querySelectorAll(selector)];
 
   function init() {
+    document.title = `${FORM.label} Checklist — ${CONFIG.storeName || "Alam Sutera"}`;
+    $("#checklistTitle").textContent = `${FORM.label} Checklist`;
+    $("#infoKicker").textContent = `Informasi ${FORM.label.toLowerCase()}`;
+    $("#dateLabel").textContent = FORM.dateLabel;
+    $("#timeLabel").textContent = FORM.timeLabel;
+    $("#picLabel").textContent = FORM.picLabel;
+    $("#picName").placeholder = `Nama lengkap ${FORM.picLabel}`;
     $("#storeLabel").textContent = CONFIG.storeName || "Alam Sutera";
-    $("#appVersion").textContent = `Opening Checklist v${CONFIG.appVersion || "1.0.0"}`;
+    $("#appVersion").textContent = `${FORM.label} Checklist v${CONFIG.appVersion || "2.0.0"}`;
     renderChecklist();
     renderSignatures();
     setDefaultDateTime();
@@ -299,8 +383,8 @@
 
   function setDefaultDateTime() {
     const now = new Date();
-    if (!$("#openingDate").value) $("#openingDate").value = localDate(now);
-    if (!$("#openingTime").value) $("#openingTime").value = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    if (!$("#executionDate").value) $("#executionDate").value = localDate(now);
+    if (!$("#executionTime").value) $("#executionTime").value = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   }
 
   function collectData() {
@@ -332,12 +416,14 @@
 
     return {
       action: "submit",
+      checklistType: FORM_TYPE,
+      formLabel: FORM.label,
       submissionId: createSubmissionId(),
       submittedAt: new Date().toISOString(),
       store: CONFIG.storeName || "Alam Sutera",
-      openingDate: $("#openingDate").value,
-      openingTime: $("#openingTime").value,
-      picOpening: $("#picOpening").value.trim(),
+      executionDate: $("#executionDate").value,
+      executionTime: $("#executionTime").value,
+      picName: $("#picName").value.trim(),
       tasks,
       signatures,
       declarationAccepted: $("#declaration").checked,
@@ -359,7 +445,7 @@
     clearInvalidStates();
     const errors = [];
 
-    [["openingDate", data.openingDate, "Tanggal opening wajib diisi."], ["openingTime", data.openingTime, "Waktu mulai wajib diisi."], ["picOpening", data.picOpening, "Nama PIC Opening wajib diisi."]].forEach(([id, value, message]) => {
+    [["executionDate", data.executionDate, `${FORM.dateLabel} wajib diisi.`], ["executionTime", data.executionTime, `${FORM.timeLabel} wajib diisi.`], ["picName", data.picName, `${FORM.picLabel} wajib diisi.`]].forEach(([id, value, message]) => {
       if (!value) { errors.push(message); $(`#${id}`).classList.add("invalid"); }
     });
 
@@ -477,9 +563,9 @@
   function restoreDraft() {
     const draft = readJson(DRAFT_KEY, null);
     if (!draft) return;
-    if (draft.openingDate) $("#openingDate").value = draft.openingDate;
-    if (draft.openingTime) $("#openingTime").value = draft.openingTime;
-    if (draft.picOpening) $("#picOpening").value = draft.picOpening;
+    if (draft.executionDate) $("#executionDate").value = draft.executionDate;
+    if (draft.executionTime) $("#executionTime").value = draft.executionTime;
+    if (draft.picName) $("#picName").value = draft.picName;
     if (typeof draft.declarationAccepted === "boolean") $("#declaration").checked = draft.declarationAccepted;
 
     (draft.tasks || []).forEach(task => {
@@ -528,7 +614,7 @@
     const data = inputData?.tasks ? inputData : collectData();
     if (!options.silentValidation) {
       const errors = validate(data, { requireSignatures: false }).filter(error => !error.includes("belum dijawab"));
-      if (!data.openingDate || !data.picOpening) {
+      if (!data.executionDate || !data.picName) {
         showToast(errors[0] || "Isi tanggal dan PIC sebelum export PDF.", "error");
         return;
       }
@@ -553,15 +639,15 @@
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(17);
-    doc.text("FORM CHECKLIST OPENING", pageWidth / 2, 16, { align: "center" });
+    doc.text(`FORM CHECKLIST ${FORM.label.toUpperCase()}`, pageWidth / 2, 16, { align: "center" });
     doc.setFontSize(11);
     doc.text(data.store || "Alam Sutera", pageWidth / 2, 22, { align: "center" });
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text(`Tanggal: ${formatDateId(data.openingDate)}`, 14, 31);
-    doc.text(`Waktu mulai: ${data.openingTime || "-"}`, 14, 36);
-    doc.text(`PIC Opening: ${data.picOpening || "-"}`, 105, 31);
+    doc.text(`Tanggal: ${formatDateId(data.executionDate)}`, 14, 31);
+    doc.text(`${FORM.timeLabel}: ${data.executionTime || "-"}`, 14, 36);
+    doc.text(`${FORM.picLabel}: ${data.picName || "-"}`, 105, 31);
     doc.text(`Status: ${data.summary.overallStatus}`, 105, 36);
 
     const body = data.tasks.map(task => [
@@ -613,7 +699,7 @@
     });
 
     const fileSuffix = options.suffix || data.submissionId || "draft";
-    const filename = `Opening_Checklist_${safeFilename(data.openingDate || "tanggal")}_${safeFilename(fileSuffix)}.pdf`;
+    const filename = `${FORM.label}_Checklist_${safeFilename(data.executionDate || "tanggal")}_${safeFilename(fileSuffix)}.pdf`;
     doc.save(filename);
     if (!options.silentValidation) showToast("PDF berhasil dibuat.", "success");
   }
@@ -664,7 +750,7 @@
       <html lang="id">
       <head>
         <meta charset="utf-8">
-        <title>Opening Checklist ${escapeHtml(data.openingDate || "")}</title>
+        <title>${FORM.label} Checklist ${escapeHtml(data.executionDate || "")}</title>
         <style>
           @page { size: A4 portrait; margin: 12mm; }
           * { box-sizing: border-box; }
@@ -693,12 +779,12 @@
         </style>
       </head>
       <body>
-        <h1>FORM CHECKLIST OPENING</h1>
+        <h1>FORM CHECKLIST ${FORM.label.toUpperCase()}</h1>
         <div class="store">${escapeHtml(data.store || "Alam Sutera")}</div>
         <div class="meta">
-          <div><strong>Tanggal:</strong> ${escapeHtml(formatDateId(data.openingDate))}</div>
-          <div><strong>PIC Opening:</strong> ${escapeHtml(data.picOpening || "-")}</div>
-          <div><strong>Waktu mulai:</strong> ${escapeHtml(data.openingTime || "-")}</div>
+          <div><strong>Tanggal:</strong> ${escapeHtml(formatDateId(data.executionDate))}</div>
+          <div><strong>${escapeHtml(FORM.picLabel)}:</strong> ${escapeHtml(data.picName || "-")}</div>
+          <div><strong>${escapeHtml(FORM.timeLabel)}:</strong> ${escapeHtml(data.executionTime || "-")}</div>
           <div><strong>Status:</strong> ${escapeHtml(data.summary?.overallStatus || "-")}</div>
         </div>
         <table>
@@ -769,7 +855,7 @@
   function createSubmissionId() {
     const now = new Date();
     const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-    return `ALS-${stamp}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    return `ALS-${FORM.code}-${stamp}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   }
 
   function getDeviceId() {

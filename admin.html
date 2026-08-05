@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0f766e" />
-  <title>Riwayat Admin — Opening Checklist</title>
+  <title>Riwayat Admin — Checklist Alam Sutera</title>
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
   <script src="config.js"></script>
@@ -13,66 +13,30 @@
 <body>
   <main class="admin-shell">
     <header class="admin-header">
-      <div>
-        <p class="section-kicker">OPENING CHECKLIST</p>
-        <h1>Riwayat Admin</h1>
-        <p class="helper-text">Lihat checklist yang sudah masuk ke Google Sheets.</p>
-      </div>
-      <a class="button button--secondary" href="index.html">Kembali ke form</a>
+      <div><p class="section-kicker">CHECKLIST ALAM SUTERA</p><h1>Riwayat Admin Terpadu</h1><p class="helper-text">Opening dan closing tampil dalam satu halaman.</p></div>
+      <a class="button button--secondary" href="index.html">Kembali ke menu</a>
     </header>
 
     <section class="panel" id="loginPanel">
-      <div class="section-heading">
-        <div>
-          <p class="section-kicker">Akses terbatas</p>
-          <h2>Masukkan PIN admin</h2>
-        </div>
-      </div>
-      <div class="admin-login">
-        <input class="admin-input" id="adminPin" type="password" inputmode="numeric" placeholder="PIN admin" autocomplete="current-password" />
-        <button class="button button--primary" id="loginButton">Buka riwayat</button>
-      </div>
+      <div class="section-heading"><div><p class="section-kicker">Akses terbatas</p><h2>Masukkan PIN admin</h2></div></div>
+      <div class="admin-login"><input class="admin-input" id="adminPin" type="password" inputmode="numeric" placeholder="PIN admin" autocomplete="current-password" /><button class="button button--primary" id="loginButton">Buka riwayat</button></div>
     </section>
 
     <section class="panel" id="recordsPanel" hidden>
-      <div class="section-heading">
-        <div>
-          <p class="section-kicker">Data terbaru</p>
-          <h2 id="recordCount">0 checklist</h2>
-        </div>
-        <button class="button button--secondary button--small" id="refreshButton">Muat ulang</button>
-      </div>
-
+      <div class="section-heading"><div><p class="section-kicker">Data terbaru</p><h2 id="recordCount">0 checklist</h2></div><button class="button button--secondary button--small" id="refreshButton">Muat ulang</button></div>
       <div class="admin-toolbar">
         <input class="filter-input" id="searchInput" type="search" placeholder="Cari PIC, tanggal, atau submission ID" />
-        <select class="filter-input" id="statusFilter" aria-label="Filter status">
-          <option value="">Semua status</option>
-          <option value="SELESAI">Selesai</option>
-          <option value="PERLU TINDAK LANJUT">Perlu tindak lanjut</option>
-        </select>
+        <select class="filter-input" id="typeFilter" aria-label="Filter jenis"><option value="">Opening + Closing</option><option value="opening">Opening</option><option value="closing">Closing</option></select>
+        <select class="filter-input" id="statusFilter" aria-label="Filter status"><option value="">Semua status</option><option value="SELESAI">Selesai</option><option value="PERLU TINDAK LANJUT">Perlu tindak lanjut</option></select>
         <button class="button button--secondary" id="csvButton">Export CSV</button>
       </div>
-
       <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Submission ID</th>
-              <th>Tanggal</th>
-              <th>Waktu</th>
-              <th>PIC</th>
-              <th>Status</th>
-              <th>Yes</th>
-              <th>No</th>
-              <th>Dikirim</th>
-            </tr>
-          </thead>
-          <tbody id="recordBody"></tbody>
-        </table>
+        <table><thead><tr><th>Jenis</th><th>Submission ID</th><th>Tanggal</th><th>Waktu</th><th>PIC</th><th>Status</th><th>Yes</th><th>No</th><th>Dikirim</th><th>Aksi</th></tr></thead><tbody id="recordBody"></tbody></table>
         <div class="empty-state" id="emptyState">Belum ada data.</div>
       </div>
     </section>
   </main>
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+  <dialog id="detailDialog" class="detail-dialog"><div class="detail-dialog__head"><div><p class="section-kicker" id="detailType">CHECKLIST</p><h2 id="detailTitle">Detail</h2></div><button class="button button--secondary button--small" id="closeDetailButton">Tutup</button></div><div id="detailBody"></div></dialog>
 </body>
 </html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f766e" />
+  <meta name="description" content="Checklist operasional store Alam Sutera" />
+  <title>Checklist — Alam Sutera</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="config.js"></script>
+  <script defer src="pdf-loader.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body data-checklist-type="opening">
+  <div class="app-shell">
+    <header class="hero">
+      <div class="hero__top">
+        <div>
+          <p class="eyebrow">OPERASIONAL TOKO</p>
+          <h1 id="checklistTitle">Checklist</h1>
+          <p class="hero__subtitle" id="storeLabel">Alam Sutera</p>
+        </div>
+        <div class="hero-actions-inline">
+          <a class="status-chip status-chip--link" href="index.html">Menu</a>
+          <div class="status-chip" id="networkChip" aria-live="polite">Online</div>
+        </div>
+      </div>
+      <div class="progress-wrap" aria-label="Progres pengisian">
+        <div class="progress-meta"><span id="progressText">0 langkah</span><strong id="progressPercent">0%</strong></div>
+        <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+      </div>
+    </header>
+
+    <main>
+      <form id="checklistForm" novalidate>
+        <section class="panel identity-panel">
+          <div class="section-heading">
+            <div><p class="section-kicker" id="infoKicker">Informasi</p><h2>Data pelaksanaan</h2></div>
+            <button class="button button--ghost button--small" type="button" id="resetButton">Reset</button>
+          </div>
+          <div class="field-grid">
+            <label class="field"><span id="dateLabel">Tanggal</span><input type="date" id="executionDate" required /></label>
+            <label class="field"><span id="timeLabel">Waktu</span><input type="time" id="executionTime" required /></label>
+            <label class="field field--wide"><span id="picLabel">PIC</span><input type="text" id="picName" placeholder="Nama lengkap PIC" autocomplete="name" required /></label>
+          </div>
+        </section>
+
+        <section id="checklistContainer" class="checklist-stack" aria-label="Daftar checklist"></section>
+
+        <section class="panel signatures-panel">
+          <div class="section-heading"><div><p class="section-kicker">Verifikasi</p><h2>Nama dan tanda tangan</h2></div></div>
+          <p class="helper-text">Isi nama, lalu tanda tangan pada kotak masing-masing. Gunakan jari atau mouse.</p>
+          <div id="signatureContainer" class="signature-grid"></div>
+        </section>
+
+        <section class="panel declaration-panel">
+          <label class="declaration"><input type="checkbox" id="declaration" required /><span>Saya menyatakan checklist diisi sesuai kondisi aktual dan dapat dipertanggungjawabkan.</span></label>
+        </section>
+
+        <div class="action-bar">
+          <button type="button" class="button button--secondary" id="saveDraftButton">Simpan draft</button>
+          <button type="button" class="button button--secondary" id="pdfButton">Export PDF</button>
+          <button type="submit" class="button button--primary" id="submitButton"><span class="button-label">Kirim checklist</span><span class="spinner" aria-hidden="true"></span></button>
+        </div>
+      </form>
+    </main>
+
+    <footer><span id="appVersion">Checklist</span><a href="admin.html">Riwayat admin</a></footer>
+  </div>
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+  <dialog id="confirmDialog" class="confirm-dialog"><form method="dialog"><h3>Reset semua isian?</h3><p>Draft yang tersimpan di perangkat ini juga akan dihapus.</p><div class="dialog-actions"><button value="cancel" class="button button--secondary">Batal</button><button value="confirm" class="button button--danger">Reset</button></div></form></dialog>
+  <noscript>Aplikasi ini membutuhkan JavaScript agar dapat digunakan.</noscript>
+</body>
+</html>
