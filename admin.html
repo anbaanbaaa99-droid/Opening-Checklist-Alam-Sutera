@@ -13,30 +13,108 @@
 <body>
   <main class="admin-shell">
     <header class="admin-header">
-      <div><p class="section-kicker">CHECKLIST ALAM SUTERA</p><h1>Riwayat Admin Terpadu</h1><p class="helper-text">Opening dan closing tampil dalam satu halaman.</p></div>
+      <div>
+        <p class="section-kicker">CHECKLIST ALAM SUTERA</p>
+        <h1>Riwayat & Approval Admin</h1>
+        <p class="helper-text">Opening dan closing tampil dalam satu halaman. Approve tanda tangan manajer di sini.</p>
+      </div>
       <a class="button button--secondary" href="index.html">Kembali ke menu</a>
     </header>
 
     <section class="panel" id="loginPanel">
       <div class="section-heading"><div><p class="section-kicker">Akses terbatas</p><h2>Masukkan PIN admin</h2></div></div>
-      <div class="admin-login"><input class="admin-input" id="adminPin" type="password" inputmode="numeric" placeholder="PIN admin" autocomplete="current-password" /><button class="button button--primary" id="loginButton">Buka riwayat</button></div>
+      <div class="admin-login">
+        <input class="admin-input" id="adminPin" type="password" inputmode="numeric" placeholder="PIN admin" autocomplete="current-password" />
+        <button class="button button--primary" id="loginButton">Buka riwayat</button>
+      </div>
     </section>
 
     <section class="panel" id="recordsPanel" hidden>
-      <div class="section-heading"><div><p class="section-kicker">Data terbaru</p><h2 id="recordCount">0 checklist</h2></div><button class="button button--secondary button--small" id="refreshButton">Muat ulang</button></div>
+      <div class="section-heading">
+        <div><p class="section-kicker">Data terbaru</p><h2 id="recordCount">0 checklist</h2></div>
+        <button class="button button--secondary button--small" id="refreshButton">Muat ulang</button>
+      </div>
       <div class="admin-toolbar">
         <input class="filter-input" id="searchInput" type="search" placeholder="Cari PIC, tanggal, atau submission ID" />
-        <select class="filter-input" id="typeFilter" aria-label="Filter jenis"><option value="">Opening + Closing</option><option value="opening">Opening</option><option value="closing">Closing</option></select>
-        <select class="filter-input" id="statusFilter" aria-label="Filter status"><option value="">Semua status</option><option value="SELESAI">Selesai</option><option value="PERLU TINDAK LANJUT">Perlu tindak lanjut</option></select>
+        <select class="filter-input" id="typeFilter" aria-label="Filter jenis">
+          <option value="">Opening + Closing</option>
+          <option value="opening">Opening</option>
+          <option value="closing">Closing</option>
+        </select>
+        <select class="filter-input" id="statusFilter" aria-label="Filter status">
+          <option value="">Semua status</option>
+          <option value="SELESAI">Selesai</option>
+          <option value="PERLU TINDAK LANJUT">Perlu tindak lanjut</option>
+        </select>
+        <select class="filter-input" id="approvalFilter" aria-label="Filter approval">
+          <option value="">Semua approval</option>
+          <option value="PENDING_APPROVAL">Menunggu approval</option>
+          <option value="APPROVED">Disetujui</option>
+          <option value="REJECTED">Ditolak</option>
+        </select>
         <button class="button button--secondary" id="csvButton">Export CSV</button>
       </div>
       <div class="table-wrap">
-        <table><thead><tr><th>Jenis</th><th>Submission ID</th><th>Tanggal</th><th>Waktu</th><th>PIC</th><th>Status</th><th>Yes</th><th>No</th><th>Dikirim</th><th>Aksi</th></tr></thead><tbody id="recordBody"></tbody></table>
+        <table>
+          <thead>
+            <tr>
+              <th>Jenis</th><th>Submission ID</th><th>Tanggal</th><th>Waktu</th><th>PIC</th>
+              <th>Status</th><th>Approval</th><th>Yes</th><th>No</th><th>Dikirim</th><th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="recordBody"></tbody>
+        </table>
         <div class="empty-state" id="emptyState">Belum ada data.</div>
       </div>
     </section>
   </main>
+
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-  <dialog id="detailDialog" class="detail-dialog"><div class="detail-dialog__head"><div><p class="section-kicker" id="detailType">CHECKLIST</p><h2 id="detailTitle">Detail</h2></div><button class="button button--secondary button--small" id="closeDetailButton">Tutup</button></div><div id="detailBody"></div></dialog>
+
+  <!-- Dialog detail -->
+  <dialog id="detailDialog" class="detail-dialog">
+    <div class="detail-dialog__head">
+      <div><p class="section-kicker" id="detailType">CHECKLIST</p><h2 id="detailTitle">Detail</h2></div>
+      <button class="button button--secondary button--small" id="closeDetailButton">Tutup</button>
+    </div>
+    <div id="detailBody"></div>
+  </dialog>
+
+  <!-- Dialog approval -->
+  <dialog id="approveDialog" class="approve-dialog">
+    <div class="detail-dialog__head">
+      <div><p class="section-kicker" id="approveKicker">APPROVAL MANAJER</p><h2 id="approveTitle">Setujui checklist</h2></div>
+      <button class="button button--secondary button--small" id="closeApproveButton">Tutup</button>
+    </div>
+    <div class="approve-body">
+      <div class="approve-summary" id="approveSummary"></div>
+
+      <label class="field">
+        <span>Nama Admin Manager</span>
+        <input type="text" id="approveName" placeholder="Nama lengkap" autocomplete="name" />
+      </label>
+
+      <div class="field">
+        <span>Tanda tangan Admin Manager</span>
+        <div class="signature-canvas-wrap" id="approveWrap">
+          <canvas class="signature-canvas" id="approveSignature"></canvas>
+          <span class="signature-placeholder">Tanda tangan di sini</span>
+        </div>
+        <div class="signature-actions">
+          <button class="link-button" type="button" id="clearApproveSignature">Hapus tanda tangan</button>
+        </div>
+      </div>
+
+      <label class="field">
+        <span>Catatan / alasan (opsional, wajib jika menolak)</span>
+        <textarea id="approveNote" rows="2" placeholder="Catatan untuk PIC"></textarea>
+      </label>
+
+      <div class="approve-actions">
+        <button class="button button--secondary" id="rejectButton" type="button">Tolak</button>
+        <button class="button button--primary" id="approveButton" type="button">Setujui</button>
+      </div>
+    </div>
+  </dialog>
 </body>
 </html>
