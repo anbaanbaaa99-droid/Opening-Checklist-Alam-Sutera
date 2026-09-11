@@ -1,4 +1,4 @@
-const CACHE_NAME = "alam-sutera-checklist-unified-v2";
+const CACHE_NAME = "alam-sutera-checklist-unified-v3";
 const ASSETS = [
   "./", "./index.html", "./opening.html", "./closing.html", "./admin.html",
   "./styles.css", "./app.js", "./admin.js", "./pdf-loader.js", "./config.js",
