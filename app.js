@@ -168,17 +168,48 @@
   const QUEUE_KEY = "alam-sutera-checklist-queue-v2";
   const DEVICE_KEY = "alam-sutera-checklist-device-id";
   const checklistGroups = FORM.groups;
+
+  // Patch approval: adminManager opsional di form PIC
   const signatureRoles = [
-  { id: "pic", label: FORM.picLabel, optional: false },
-  { id: "facility", label: "Facility", optional: false },
-  { id: "security", label: "Security", optional: false },
-  {
-    id: "adminManager",
-    label: "Admin Manager",
-    optional: true,
-    hint: "Boleh dikosongkan. Manajer dapat menandatangani melalui halaman admin setelah submit."
+    { id: "pic", label: FORM.picLabel, optional: false },
+    { id: "facility", label: "Facility", optional: false },
+    { id: "security", label: "Security", optional: false },
+    {
+      id: "adminManager",
+      label: "Admin Manager",
+      optional: true,
+      hint: "Boleh dikosongkan. Manajer dapat menandatangani melalui halaman admin setelah submit."
+    }
+  ];
+
+  const allTasks = checklistGroups.flatMap(group => group.tasks.map(task => ({ ...task, groupNo: group.no, groupTitle: group.title })));
+  const signaturePads = new Map();
+  let autoSaveTimer = null;
+
+  const $ = selector => document.querySelector(selector);
+  const $$ = selector => [...document.querySelectorAll(selector)];
+
+  function init() {
+    document.title = `${FORM.label} Checklist — ${CONFIG.storeName || "Alam Sutera"}`;
+    $("#checklistTitle").textContent = `${FORM.label} Checklist`;
+    $("#infoKicker").textContent = `Informasi ${FORM.label.toLowerCase()}`;
+    $("#dateLabel").textContent = FORM.dateLabel;
+    $("#timeLabel").textContent = FORM.timeLabel;
+    $("#picLabel").textContent = FORM.picLabel;
+    $("#picName").placeholder = `Nama lengkap ${FORM.picLabel}`;
+    $("#storeLabel").textContent = CONFIG.storeName || "Alam Sutera";
+    $("#appVersion").textContent = `${FORM.label} Checklist v${CONFIG.appVersion || "2.0.0"}`;
+    renderChecklist();
+    renderSignatures();
+    setDefaultDateTime();
+    bindEvents();
+    restoreDraft();
+    updateProgress();
+    updateNetworkStatus();
+    flushQueue();
+    registerServiceWorker();
   }
-];
+
   function renderChecklist() {
     $("#checklistContainer").innerHTML = checklistGroups.map(group => `
       <article class="checklist-card" data-group="${group.no}">
@@ -220,26 +251,28 @@
     `).join("");
   }
 
+  // Patch approval: tampilkan tag "opsional" + hint untuk Admin Manager
   function renderSignatures() {
-  $("#signatureContainer").innerHTML = signatureRoles.map(role => `
-    <article class="signature-card" data-signature-role="${role.id}">
-      <h3>${role.label}${role.optional ? ' <span class="optional-tag">opsional</span>' : ''}</h3>
-      ${role.hint ? `<p class="helper-text helper-text--compact">${escapeHtml(role.hint)}</p>` : ""}
-      <input class="signature-name" id="name-${role.id}" type="text" placeholder="Nama lengkap" aria-label="Nama ${role.label}" />
-      <div class="signature-canvas-wrap" id="wrap-${role.id}">
-        <canvas class="signature-canvas" id="signature-${role.id}" aria-label="Tanda tangan ${role.label}"></canvas>
-        <span class="signature-placeholder">Tanda tangan di sini</span>
-      </div>
-      <div class="signature-actions"><button class="link-button" type="button" data-clear-signature="${role.id}">Hapus tanda tangan</button></div>
-    </article>
-  `).join("");
+    $("#signatureContainer").innerHTML = signatureRoles.map(role => `
+      <article class="signature-card" data-signature-role="${role.id}">
+        <h3>${escapeHtml(role.label)}${role.optional ? ' <span class="optional-tag">opsional</span>' : ''}</h3>
+        ${role.hint ? `<p class="helper-text helper-text--compact">${escapeHtml(role.hint)}</p>` : ""}
+        <input class="signature-name" id="name-${role.id}" type="text" placeholder="Nama lengkap" aria-label="Nama ${role.label}" />
+        <div class="signature-canvas-wrap" id="wrap-${role.id}">
+          <canvas class="signature-canvas" id="signature-${role.id}" aria-label="Tanda tangan ${role.label}"></canvas>
+          <span class="signature-placeholder">Tanda tangan di sini</span>
+        </div>
+        <div class="signature-actions"><button class="link-button" type="button" data-clear-signature="${role.id}">Hapus tanda tangan</button></div>
+      </article>
+    `).join("");
 
-  signatureRoles.forEach(role => setupSignaturePad(role.id));
-}
+    signatureRoles.forEach(role => setupSignaturePad(role.id));
+  }
 
   function setupSignaturePad(roleId) {
     const canvas = $(`#signature-${roleId}`);
     const wrap = $(`#wrap-${roleId}`);
+    if (!canvas || !wrap) return;
     const ctx = canvas.getContext("2d");
     const state = { drawing: false, signed: false, lastX: 0, lastY: 0 };
 
@@ -259,19 +292,19 @@
 
     const point = event => {
       const rect = canvas.getBoundingClientRect();
-      const source = event.touches?.[0] || event;
+      const source = (event.touches && event.touches[0]) || event;
       return { x: source.clientX - rect.left, y: source.clientY - rect.top };
     };
 
-    const start = event => {
+    canvas.addEventListener("pointerdown", event => {
       event.preventDefault();
       const p = point(event);
       state.drawing = true;
       state.lastX = p.x;
       state.lastY = p.y;
-    };
+    });
 
-    const move = event => {
+    canvas.addEventListener("pointermove", event => {
       if (!state.drawing) return;
       event.preventDefault();
       const p = point(event);
@@ -283,7 +316,7 @@
       state.lastY = p.y;
       state.signed = true;
       wrap.classList.add("signed");
-    };
+    });
 
     const end = () => {
       if (!state.drawing) return;
@@ -291,8 +324,6 @@
       scheduleAutoSave();
     };
 
-    canvas.addEventListener("pointerdown", start);
-    canvas.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
     window.addEventListener("resize", debounce(resize, 180));
@@ -418,11 +449,14 @@
     };
   }
 
+  // Patch approval: role optional tidak divalidasi
   function validate(data, { requireSignatures = true } = {}) {
     clearInvalidStates();
     const errors = [];
 
-    [["executionDate", data.executionDate, `${FORM.dateLabel} wajib diisi.`], ["executionTime", data.executionTime, `${FORM.timeLabel} wajib diisi.`], ["picName", data.picName, `${FORM.picLabel} wajib diisi.`]].forEach(([id, value, message]) => {
+    [["executionDate", data.executionDate, `${FORM.dateLabel} wajib diisi.`],
+     ["executionTime", data.executionTime, `${FORM.timeLabel} wajib diisi.`],
+     ["picName", data.picName, `${FORM.picLabel} wajib diisi.`]].forEach(([id, value, message]) => {
       if (!value) { errors.push(message); $(`#${id}`).classList.add("invalid"); }
     });
 
@@ -440,16 +474,16 @@
 
     if (requireSignatures) {
       signatureRoles.filter(role => !role.optional).forEach(role => {
-    const signature = data.signatures[role.id];
-    if (!signature.name) {
-    errors.push(`Nama ${role.label} wajib diisi.`);
-    $(`#name-${role.id}`).classList.add("invalid");
-    }
-    if (!signature.image) {
-    errors.push(`Tanda tangan ${role.label} wajib diisi.`);
-    $(`#wrap-${role.id}`).classList.add("invalid");
-    }
-    });
+        const signature = data.signatures[role.id];
+        if (!signature.name) {
+          errors.push(`Nama ${role.label} wajib diisi.`);
+          $(`#name-${role.id}`).classList.add("invalid");
+        }
+        if (!signature.image) {
+          errors.push(`Tanda tangan ${role.label} wajib diisi.`);
+          $(`#wrap-${role.id}`).classList.add("invalid");
+        }
+      });
       if (!data.declarationAccepted) errors.push("Pernyataan pertanggungjawaban wajib disetujui.");
     }
 
@@ -475,48 +509,53 @@
     try {
       const result = await sendToBackend(data);
       if (!result.ok) throw new Error(result.message || "Backend menolak data.");
-localStorage.removeItem(DRAFT_KEY);
+      localStorage.removeItem(DRAFT_KEY);
 
-// Bangun URL approval untuk manajer
-if (result.approvalToken && result.submissionId) {
-  const approvalUrl = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}admin.html?approve=${encodeURIComponent(result.submissionId)}&token=${encodeURIComponent(result.approvalToken)}&type=${FORM_TYPE}`;
-  try { await navigator.clipboard.writeText(approvalUrl); } catch (_) {}
-  showToast(`Checklist terkirim. Link approval disalin — kirim ke Admin Manager.`, "success", 6500);
-  // Tampilkan tombol WhatsApp share sederhana
-  showShareApproval(approvalUrl, result.submissionId);
-} else {
-  showToast(`Checklist berhasil dikirim. ID: ${result.submissionId || data.submissionId}`, "success", 5200);
-}
+      // Patch approval: bikin link untuk manajer
+      if (result.approvalToken && result.submissionId) {
+        const base = location.pathname.replace(/[^/]*$/, "");
+        const approvalUrl = `${location.origin}${base}admin.html?approve=${encodeURIComponent(result.submissionId)}&token=${encodeURIComponent(result.approvalToken)}&type=${FORM_TYPE}`;
+        try { await navigator.clipboard.writeText(approvalUrl); } catch (_) {}
+        showToast("Checklist terkirim. Link approval sudah disalin.", "success", 6500);
+        showShareApproval(approvalUrl, result.submissionId);
+      } else {
+        showToast(`Checklist berhasil dikirim. ID: ${result.submissionId || data.submissionId}`, "success", 5200);
+      }
 
-await exportPdf(data, { silentValidation: true, suffix: result.submissionId || data.submissionId });
-resetForm(false);
+      await exportPdf(data, { silentValidation: true, suffix: result.submissionId || data.submissionId });
+      resetForm(false);
+    } catch (error) {
+      queueSubmission(data);
+      showToast(`Koneksi/backend gagal. Data diamankan di antrean perangkat. ${error.message}`, "error", 7000);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
-function showShareApproval(url, submissionId) {
-  const existing = document.getElementById("approval-share-banner");
-  existing?.remove();
-  const banner = document.createElement("div");
-  banner.id = "approval-share-banner";
-  banner.className = "approval-share-banner";
-  banner.innerHTML = `
-    <div>
-      <strong>Approval menunggu Admin Manager</strong>
-      <p>Bagikan link ini agar manajer dapat menandatangani tanpa perlu PIN admin.</p>
-      <code>${escapeHtml(url)}</code>
-    </div>
-    <div class="approval-share-actions">
-      <button class="button button--secondary button--small" id="copyApprovalLink">Salin</button>
-      <a class="button button--primary button--small" target="_blank" rel="noopener"
-         href="https://wa.me/?text=${encodeURIComponent("Mohon approve checklist " + submissionId + ": " + url)}">Kirim via WhatsApp</a>
-      <button class="button button--ghost button--small" id="closeApprovalBanner">Tutup</button>
-    </div>
-  `;
-  document.body.appendChild(banner);
-  document.getElementById("closeApprovalBanner").addEventListener("click", () => banner.remove());
-  document.getElementById("copyApprovalLink").addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(url); showToast("Link disalin.", "success"); } catch (_) {}
-  });
-}  
-      
+  function showShareApproval(url, submissionId) {
+    const existing = document.getElementById("approval-share-banner");
+    if (existing) existing.remove();
+    const banner = document.createElement("div");
+    banner.id = "approval-share-banner";
+    banner.className = "approval-share-banner";
+    banner.innerHTML = `
+      <div>
+        <strong>Approval menunggu Admin Manager</strong>
+        <p>Bagikan link ini ke manajer. Tidak perlu PIN admin.</p>
+        <code>${escapeHtml(url)}</code>
+      </div>
+      <div class="approval-share-actions">
+        <button class="button button--secondary button--small" id="copyApprovalLink">Salin</button>
+        <a class="button button--primary button--small" target="_blank" rel="noopener"
+           href="https://wa.me/?text=${encodeURIComponent("Mohon approve checklist " + submissionId + ": " + url)}">Kirim via WhatsApp</a>
+        <button class="button button--ghost button--small" id="closeApprovalBanner">Tutup</button>
+      </div>
+    `;
+    document.body.appendChild(banner);
+    document.getElementById("closeApprovalBanner").addEventListener("click", () => banner.remove());
+    document.getElementById("copyApprovalLink").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(url); showToast("Link disalin.", "success"); } catch (_) {}
+    });
   }
 
   async function sendToBackend(payload) {
@@ -620,18 +659,17 @@ function showShareApproval(url, submissionId) {
   }
 
   async function exportPdf(inputData, options = {}) {
-    const data = inputData?.tasks ? inputData : collectData();
+    const data = inputData && inputData.tasks ? inputData : collectData();
     if (!options.silentValidation) {
-      const errors = validate(data, { requireSignatures: false }).filter(error => !error.includes("belum dijawab"));
       if (!data.executionDate || !data.picName) {
-        showToast(errors[0] || "Isi tanggal dan PIC sebelum export PDF.", "error");
+        showToast("Isi tanggal dan PIC sebelum export PDF.", "error");
         return;
       }
     }
 
     const pdfReady = typeof window.ensurePdfLibraries === "function"
       ? await window.ensurePdfLibraries()
-      : Boolean(window.jspdf?.jsPDF && window.jspdf.jsPDF.API?.autoTable);
+      : Boolean(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable);
 
     if (!pdfReady) {
       if (options.silentValidation) {
@@ -694,7 +732,7 @@ function showShareApproval(url, submissionId) {
     const gap = 4;
     signatureRoles.forEach((role, index) => {
       const x = 14 + index * (cardWidth + gap);
-      const sig = data.signatures[role.id] || {};
+      const sig = (data.signatures && data.signatures[role.id]) || {};
       doc.setDrawColor(210);
       doc.rect(x, y, cardWidth, 31);
       if (sig.image) {
@@ -702,7 +740,7 @@ function showShareApproval(url, submissionId) {
       }
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.4);
-      doc.text(sig.name || "Belum diisi", x + cardWidth / 2, y + 23, { align: "center", maxWidth: cardWidth - 3 });
+      doc.text(sig.name || (role.optional ? "Menunggu approval" : "Belum diisi"), x + cardWidth / 2, y + 23, { align: "center", maxWidth: cardWidth - 3 });
       doc.setFont("helvetica", "bold");
       doc.text(role.label, x + cardWidth / 2, y + 28, { align: "center" });
     });
@@ -715,7 +753,7 @@ function showShareApproval(url, submissionId) {
 
   function exportWithPrintDialog(data) {
     const existing = document.getElementById("pdf-print-frame");
-    existing?.remove();
+    if (existing) existing.remove();
 
     const frame = document.createElement("iframe");
     frame.id = "pdf-print-frame";
@@ -742,14 +780,14 @@ function showShareApproval(url, submissionId) {
     `).join("");
 
     const signatureCards = signatureRoles.map(role => {
-      const signature = data.signatures?.[role.id] || {};
+      const signature = (data.signatures && data.signatures[role.id]) || {};
       const image = typeof signature.image === "string" && signature.image.startsWith("data:image/")
         ? `<img src="${signature.image}" alt="Tanda tangan ${escapeHtml(role.label)}">`
         : `<div class="signature-empty"></div>`;
       return `
         <div class="signature-card-print">
           ${image}
-          <div class="signature-name-print">${escapeHtml(signature.name || "Belum diisi")}</div>
+          <div class="signature-name-print">${escapeHtml(signature.name || (role.optional ? "Menunggu approval manajer" : "Belum diisi"))}</div>
           <strong>${escapeHtml(role.label)}</strong>
         </div>
       `;
@@ -794,7 +832,7 @@ function showShareApproval(url, submissionId) {
           <div><strong>Tanggal:</strong> ${escapeHtml(formatDateId(data.executionDate))}</div>
           <div><strong>${escapeHtml(FORM.picLabel)}:</strong> ${escapeHtml(data.picName || "-")}</div>
           <div><strong>${escapeHtml(FORM.timeLabel)}:</strong> ${escapeHtml(data.executionTime || "-")}</div>
-          <div><strong>Status:</strong> ${escapeHtml(data.summary?.overallStatus || "-")}</div>
+          <div><strong>Status:</strong> ${escapeHtml((data.summary && data.summary.overallStatus) || "-")}</div>
         </div>
         <table>
           <thead><tr><th>No</th><th>To Do</th><th>Jawaban</th><th>Keterangan</th></tr></thead>
@@ -812,8 +850,8 @@ function showShareApproval(url, submissionId) {
     frame.onload = () => {
       window.setTimeout(() => {
         try {
-          frame.contentWindow?.focus();
-          frame.contentWindow?.print();
+          frame.contentWindow.focus();
+          frame.contentWindow.print();
           showToast("Pilih printer 'Save as PDF' atau 'Simpan sebagai PDF'.", "success", 6500);
         } catch (_) {
           showToast("Preview PDF gagal dibuka. Izinkan dialog cetak pada browser lalu coba lagi.", "error", 6500);
@@ -845,19 +883,22 @@ function showShareApproval(url, submissionId) {
     const button = $("#submitButton");
     button.disabled = value;
     button.classList.toggle("loading", value);
-    button.querySelector(".button-label").textContent = value ? "Mengirim..." : "Kirim checklist";
+    const label = button.querySelector(".button-label");
+    if (label) label.textContent = value ? "Mengirim..." : "Kirim checklist";
   }
 
   function focusFirstInvalid() {
-    const invalid = $(".invalid, .invalid-card");
-    invalid?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const invalid = $(".invalid") || $(".invalid-card");
+    if (invalid) invalid.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   function showToast(message, type = "", duration = 3600) {
+    const region = $("#toastRegion");
+    if (!region) return;
     const toast = document.createElement("div");
     toast.className = `toast ${type}`.trim();
     toast.textContent = message;
-    $("#toastRegion").appendChild(toast);
+    region.appendChild(toast);
     setTimeout(() => toast.remove(), duration);
   }
 
@@ -895,7 +936,7 @@ function showShareApproval(url, submissionId) {
 
   function safeFilename(value) { return String(value).replace(/[^a-z0-9_-]+/gi, "-").replace(/-+/g, "-"); }
   function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char])); }
-  function readJson(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_) { return fallback; } }
+  function readJson(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch (_) { return fallback; } }
   function debounce(fn, delay) { let timer; return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); }; }
 
   document.addEventListener("DOMContentLoaded", init);
