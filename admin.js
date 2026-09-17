@@ -1,5 +1,7 @@
 (() => {
   "use strict";
+  console.log("[admin.js] loaded, readyState:", document.readyState);
+
   const CONFIG = window.CHECKLIST_APP_CONFIG || {};
   let records = [];
   let adminPin = "";
@@ -7,21 +9,41 @@
   let approveAuth = { pin: "", token: "" };
   let signPad = null;
   let approveTarget = null;
+  let initialized = false;
   const $ = selector => document.querySelector(selector);
 
-  document.addEventListener("DOMContentLoaded", init);
+  // readyState-safe init: jalan baik script dimuat sebelum atau setelah DCL
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    // DOM sudah siap (defer + browser lambat, atau script di-load ulang)
+    init();
+  }
 
   function init() {
-    $("#loginButton").addEventListener("click", login);
-    $("#adminPin").addEventListener("keydown", event => { if (event.key === "Enter") login(); });
-    $("#refreshButton").addEventListener("click", loadRecords);
-    $("#searchInput").addEventListener("input", render);
-    $("#typeFilter").addEventListener("change", render);
-    $("#statusFilter").addEventListener("change", render);
-    $("#approvalFilter").addEventListener("change", render);
-    $("#csvButton").addEventListener("click", exportCsv);
+    if (initialized) return;
+    initialized = true;
+    console.log("[admin.js] init()");
 
-    $("#recordBody").addEventListener("click", event => {
+    const bind = (selector, event, handler) => {
+      const el = $(selector);
+      if (!el) {
+        console.warn("[admin.js] element not found:", selector);
+        return;
+      }
+      el.addEventListener(event, handler);
+    };
+
+    bind("#loginButton", "click", login);
+    bind("#adminPin", "keydown", event => { if (event.key === "Enter") login(); });
+    bind("#refreshButton", "click", loadRecords);
+    bind("#searchInput", "input", render);
+    bind("#typeFilter", "change", render);
+    bind("#statusFilter", "change", render);
+    bind("#approvalFilter", "change", render);
+    bind("#csvButton", "click", exportCsv);
+
+    bind("#recordBody", "click", event => {
       const detailBtn = event.target.closest("[data-detail-id]");
       if (detailBtn) { showDetail(detailBtn.dataset.detailId); return; }
       const approveBtn = event.target.closest("[data-approve-id]");
@@ -30,115 +52,46 @@
       if (pdfBtn) { regeneratePdf(pdfBtn.dataset.pdfId); }
     });
 
-    $("#closeDetailButton").addEventListener("click", () => $("#detailDialog").close());
-    $("#closeApproveButton").addEventListener("click", () => $("#approveDialog").close());
-    $("#clearApproveSignature").addEventListener("click", () => signPad && signPad.clear());
-    $("#approveButton").addEventListener("click", () => submitApproval("approve"));
-    $("#rejectButton").addEventListener("click", () => submitApproval("reject"));
+    bind("#closeDetailButton", "click", () => { const d = $("#detailDialog"); if (d) d.close(); });
+    bind("#closeApproveButton", "click", () => { const d = $("#approveDialog"); if (d) d.close(); });
+    bind("#clearApproveSignature", "click", () => signPad && signPad.clear());
+    bind("#approveButton", "click", () => submitApproval("approve"));
+    bind("#rejectButton", "click", () => submitApproval("reject"));
 
-    function setupSignPad() {
-  const canvas = $("#approveSignature");
-  const wrap = $("#approveWrap");
-  const ctx = canvas.getContext("2d");
-  const state = { drawing: false, signed: false, lastX: 0, lastY: 0 };
-
-  const resize = () => {
-    const existing = state.signed ? canvas.toDataURL("image/png") : null;
-    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    const rect = canvas.getBoundingClientRect();
-
-    // Guard: kalau dialog belum terbuka (rect 0), JANGAN reset canvas ke 0x0
-    if (rect.width < 1 || rect.height < 1) return;
-
-    canvas.width = Math.floor(rect.width * ratio);
-    canvas.height = Math.floor(rect.height * ratio);
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 2.2;
-    ctx.strokeStyle = "#17211f";
-    ctx.fillStyle = "#17211f";
-
-    if (existing) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width / ratio, canvas.height / ratio);
-      };
-      img.src = existing;
+    try {
+      setupSignPad();
+    } catch (e) {
+      console.error("[admin.js] setupSignPad failed:", e);
     }
-  };
 
-  const point = event => {
-    const rect = canvas.getBoundingClientRect();
-    const source = (event.touches && event.touches[0]) || event;
-    return {
-      x: (source.clientX - rect.left) * (canvas.width / rect.width) / (window.devicePixelRatio || 1),
-      y: (source.clientY - rect.top) * (canvas.height / rect.height) / (window.devicePixelRatio || 1)
-    };
-  };
-
-  canvas.addEventListener("pointerdown", event => {
-    event.preventDefault();
-    try { canvas.setPointerCapture(event.pointerId); } catch (_) {}
-    const p = point(event);
-    state.drawing = true;
-    state.lastX = p.x;
-    state.lastY = p.y;
-    // titik awal, supaya tap singkat tetap terlihat
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 1.1, 0, Math.PI * 2);
-    ctx.fill();
-    state.signed = true;
-    wrap.classList.add("signed");
-  });
-
-  canvas.addEventListener("pointermove", event => {
-    if (!state.drawing) return;
-    event.preventDefault();
-    const p = point(event);
-    ctx.beginPath();
-    ctx.moveTo(state.lastX, state.lastY);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    state.lastX = p.x;
-    state.lastY = p.y;
-    state.signed = true;
-    wrap.classList.add("signed");
-  });
-
-  canvas.addEventListener("pointerup", event => {
-    if (!state.drawing) return;
-    try { canvas.releasePointerCapture(event.pointerId); } catch (_) {}
-    state.drawing = false;
-  });
-  canvas.addEventListener("pointercancel", () => { state.drawing = false; });
-  canvas.addEventListener("pointerleave", () => { /* tetap gambar selama capture */ });
-
-  window.addEventListener("resize", () => setTimeout(resize, 180));
-
-  // Jangan resize di sini karena dialog masih hidden — akan dipanggil dari openApprovalDialog
-  setTimeout(resize, 50);
-
-  signPad = {
-    clear() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      state.signed = false;
-      wrap.classList.remove("signed");
-    },
-    dataUrl() {
-      return state.signed ? canvas.toDataURL("image/png") : "";
-    },
-    resize() {
-      resize();
+    // Deep link: ?approve=<id>&type=opening|closing&token=<optional>
+    try {
+      const params = new URLSearchParams(location.search);
+      const approveId = params.get("approve");
+      const type = params.get("type");
+      const token = params.get("token");
+      if (approveId && type) {
+        approveAuth.token = token || "";
+        approveTarget = { id: approveId, type: type };
+        const loginPanel = $("#loginPanel");
+        const recordsPanel = $("#recordsPanel");
+        if (loginPanel) loginPanel.hidden = false;
+        if (recordsPanel) recordsPanel.hidden = true;
+        const loginHeading = $("#loginPanel .section-heading h2");
+        if (loginHeading) loginHeading.textContent = "Masukkan PIN untuk approval";
+        setTimeout(() => { const f = $("#adminPin"); if (f) f.focus(); }, 200);
+      }
+    } catch (e) {
+      console.warn("[admin.js] URL param parse failed:", e);
     }
-  };
-}
+  }
 
+  // ============ AUTH ============
   async function login() {
-    adminPin = $("#adminPin").value.trim();
+    adminPin = ($("#adminPin").value || "").trim();
     if (!adminPin) return toast("PIN admin wajib diisi.", "error");
     approveAuth.pin = adminPin;
+    console.log("[admin.js] login with PIN length:", adminPin.length);
 
     if (approveTarget) {
       const target = approveTarget;
@@ -149,20 +102,28 @@
     await loadRecords();
   }
 
+  // ============ LIST ============
   async function loadRecords() {
     if (!CONFIG.apiUrl || CONFIG.apiUrl.includes("PASTE_YOUR")) {
       return toast("URL Apps Script belum diatur di config.js.", "error");
     }
     setBusy(true);
     try {
+      console.log("[admin.js] loadRecords: calling API");
       const result = await apiCall({ action: "list", adminPin, limit: 500 });
+      console.log("[admin.js] loadRecords response ok:", result && result.ok);
       if (!result.ok) throw new Error(result.message || "Gagal memuat data.");
       records = result.records || [];
-      $("#loginPanel").hidden = true;
-      $("#recordsPanel").hidden = false;
+      const loginPanel = $("#loginPanel");
+      const recordsPanel = $("#recordsPanel");
+      if (loginPanel) loginPanel.hidden = true;
+      if (recordsPanel) recordsPanel.hidden = false;
       render();
       toast("Riwayat berhasil dimuat.", "success");
-    } catch (error) { toast(error.message, "error"); }
+    } catch (error) {
+      console.error("[admin.js] loadRecords error:", error);
+      toast(error.message, "error");
+    }
     finally { setBusy(false); }
   }
 
@@ -177,8 +138,15 @@
       });
       if (!result.ok) throw new Error(result.message || "Gagal memuat data.");
       records = [result.record];
+      const loginPanel = $("#loginPanel");
+      const recordsPanel = $("#recordsPanel");
+      if (loginPanel) loginPanel.hidden = true;
+      if (recordsPanel) recordsPanel.hidden = true;
       openApprovalDialog(result.record);
-    } catch (error) { toast(error.message, "error"); }
+    } catch (error) {
+      console.error("[admin.js] loadSingleForApproval error:", error);
+      toast(error.message, "error");
+    }
     finally { setBusy(false); }
   }
 
@@ -193,8 +161,9 @@
     return response.json();
   }
 
+  // ============ FILTER + RENDER LIST ============
   function filteredRecords() {
-    const query = $("#searchInput").value.trim().toLowerCase();
+    const query = ($("#searchInput").value || "").trim().toLowerCase();
     const type = $("#typeFilter").value;
     const status = $("#statusFilter").value;
     const approval = $("#approvalFilter").value;
@@ -210,9 +179,15 @@
 
   function render() {
     const rows = filteredRecords();
-    $("#recordCount").textContent = `${rows.length} checklist`;
-    $("#emptyState").hidden = rows.length > 0;
-    $("#recordBody").innerHTML = rows.map(record => {
+    const countEl = $("#recordCount");
+    if (countEl) countEl.textContent = `${rows.length} checklist`;
+    const emptyEl = $("#emptyState");
+    if (emptyEl) emptyEl.hidden = rows.length > 0;
+
+    const bodyEl = $("#recordBody");
+    if (!bodyEl) return;
+
+    bodyEl.innerHTML = rows.map(record => {
       const status = (record.summary && record.summary.overallStatus) || "-";
       const statusClass = status === "SELESAI" ? "status-ok" : "status-issue";
       const typeClass = record.checklistType === "closing"
@@ -248,6 +223,7 @@
     return `<span class="approval-badge approval-badge--approved">Disetujui</span>`;
   }
 
+  // ============ DETAIL ============
   function showDetail(id) {
     const record = records.find(item => item.submissionId === id);
     if (!record) return;
@@ -285,6 +261,7 @@
     $("#detailDialog").showModal();
   }
 
+  // ============ APPROVAL ============
   function openApprovalById(id) {
     const record = records.find(item => item.submissionId === id);
     if (!record) return;
@@ -292,56 +269,54 @@
   }
 
   async function openApprovalDialog(record) {
-  currentRecord = record;
-  $("#approveKicker").textContent = `${record.formLabel || "Checklist"} — ${record.submissionId || ""}`;
-  $("#approveTitle").textContent = "Setujui checklist";
-  $("#approveName").value = "";
-  $("#approveNote").value = "";
-  signPad && signPad.clear();
+    currentRecord = record;
+    $("#approveKicker").textContent = `${record.formLabel || "Checklist"} — ${record.submissionId || ""}`;
+    $("#approveTitle").textContent = "Setujui checklist";
+    $("#approveName").value = "";
+    $("#approveNote").value = "";
+    signPad && signPad.clear();
 
-  $("#approveSummary").innerHTML = `
-    <div><strong>Tanggal</strong><span>${escapeHtml(formatDate(record.executionDate))}</span></div>
-    <div><strong>PIC</strong><span>${escapeHtml(record.picName || "-")}</span></div>
-    <div><strong>Status</strong><span>${escapeHtml((record.summary && record.summary.overallStatus) || "-")}</span></div>
-    <div><strong>Yes / No</strong><span>${Number((record.summary && record.summary.yes) || 0)} / ${Number((record.summary && record.summary.no) || 0)}</span></div>
-  `;
-  $("#approveDialog").showModal();
+    $("#approveSummary").innerHTML = `
+      <div><strong>Tanggal</strong><span>${escapeHtml(formatDate(record.executionDate))}</span></div>
+      <div><strong>PIC</strong><span>${escapeHtml(record.picName || "-")}</span></div>
+      <div><strong>Status</strong><span>${escapeHtml((record.summary && record.summary.overallStatus) || "-")}</span></div>
+      <div><strong>Yes / No</strong><span>${Number((record.summary && record.summary.yes) || 0)} / ${Number((record.summary && record.summary.no) || 0)}</span></div>
+    `;
+    $("#approveDialog").showModal();
 
-  // === FIX UTAMA ===
-  // Paksa canvas punya ukuran setelah dialog terlihat.
-  // Dua kali panggilan supaya layout settle dulu (webkit mobile kadang butuh dua frame).
-  const forceResize = () => { if (signPad && signPad.resize) signPad.resize(); };
-  requestAnimationFrame(() => {
-    forceResize();
-    setTimeout(forceResize, 120);
-  });
+    // FIX: paksa canvas resize setelah dialog terbuka
+    const forceResize = () => { if (signPad && signPad.resize) signPad.resize(); };
+    requestAnimationFrame(() => {
+      forceResize();
+      setTimeout(forceResize, 120);
+    });
 
-  if (!record.signatureImages) {
-    try {
-      const result = await apiCall({
-        action: "get",
-        checklistType: record.checklistType,
-        submissionId: record.submissionId,
-        adminPin: approveAuth.pin
-      });
-      if (result.ok && result.record) {
-        currentRecord = result.record;
-        // resize sekali lagi karena konten bertambah setelah record lengkap
-        setTimeout(forceResize, 80);
-      }
-    } catch (_) { /* lanjut dengan record yang ada */ }
+    if (!record.signatureImages) {
+      try {
+        const result = await apiCall({
+          action: "get",
+          checklistType: record.checklistType,
+          submissionId: record.submissionId,
+          adminPin: approveAuth.pin
+        });
+        if (result.ok && result.record) {
+          currentRecord = result.record;
+          setTimeout(forceResize, 80);
+        }
+      } catch (_) { /* lanjut dengan record yang ada */ }
+    }
   }
-}
+
   async function submitApproval(mode) {
     if (!currentRecord) return;
-    const managerName = $("#approveName").value.trim();
-    const note = $("#approveNote").value.trim();
+    const managerName = ($("#approveName").value || "").trim();
+    const note = ($("#approveNote").value || "").trim();
     const signatureImage = signPad ? signPad.dataUrl() : "";
 
     if (!managerName) return toast("Nama Admin Manager wajib diisi.", "error");
     if (mode === "approve" && !signatureImage) return toast("Tanda tangan wajib diisi untuk menyetujui.", "error");
     if (mode === "reject" && !note) return toast("Alasan penolakan wajib diisi.", "error");
-    if (!approveAuth.pin) return toast("PIN admin belum diisi. Buka ulang link atau login ulang.", "error");
+    if (!approveAuth.pin) return toast("PIN admin belum diisi.", "error");
 
     setBusy(true);
     try {
@@ -385,6 +360,7 @@
     finally { setBusy(false); }
   }
 
+  // ============ PDF ============
   async function regeneratePdf(id) {
     const record = records.find(r => r.submissionId === id);
     if (!record) return;
@@ -567,9 +543,14 @@
     frame.srcdoc = html;
   }
 
+  // ============ SIGNATURE PAD ============
   function setupSignPad() {
     const canvas = $("#approveSignature");
     const wrap = $("#approveWrap");
+    if (!canvas || !wrap) {
+      console.warn("[admin.js] signature canvas/wrap not found");
+      return;
+    }
     const ctx = canvas.getContext("2d");
     const state = { drawing: false, signed: false, lastX: 0, lastY: 0 };
 
@@ -577,11 +558,17 @@
       const existing = state.signed ? canvas.toDataURL("image/png") : null;
       const ratio = Math.max(window.devicePixelRatio || 1, 1);
       const rect = canvas.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return; // dialog belum terbuka
+
       canvas.width = Math.floor(rect.width * ratio);
       canvas.height = Math.floor(rect.height * ratio);
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      ctx.lineCap = "round"; ctx.lineJoin = "round";
-      ctx.lineWidth = 2.2; ctx.strokeStyle = "#17211f";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = "#17211f";
+      ctx.fillStyle = "#17211f";
+
       if (existing) {
         const img = new Image();
         img.onload = () => {
@@ -600,10 +587,17 @@
 
     canvas.addEventListener("pointerdown", event => {
       event.preventDefault();
+      try { canvas.setPointerCapture(event.pointerId); } catch (_) {}
       const p = point(event);
       state.drawing = true;
       state.lastX = p.x; state.lastY = p.y;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.1, 0, Math.PI * 2);
+      ctx.fill();
+      state.signed = true;
+      wrap.classList.add("signed");
     });
+
     canvas.addEventListener("pointermove", event => {
       if (!state.drawing) return;
       event.preventDefault();
@@ -616,8 +610,15 @@
       state.signed = true;
       wrap.classList.add("signed");
     });
-    window.addEventListener("pointerup", () => { state.drawing = false; });
-    window.addEventListener("resize", () => setTimeout(resize, 150));
+
+    canvas.addEventListener("pointerup", event => {
+      if (!state.drawing) return;
+      try { canvas.releasePointerCapture(event.pointerId); } catch (_) {}
+      state.drawing = false;
+    });
+    canvas.addEventListener("pointercancel", () => { state.drawing = false; });
+
+    window.addEventListener("resize", () => setTimeout(resize, 180));
     setTimeout(resize, 50);
 
     signPad = {
@@ -626,10 +627,12 @@
         state.signed = false;
         wrap.classList.remove("signed");
       },
-      dataUrl() { return state.signed ? canvas.toDataURL("image/png") : ""; }
+      dataUrl() { return state.signed ? canvas.toDataURL("image/png") : ""; },
+      resize() { resize(); }
     };
   }
 
+  // ============ CSV ============
   function exportCsv() {
     const rows = filteredRecords();
     if (!rows.length) return toast("Tidak ada data untuk diexport.", "error");
@@ -653,32 +656,41 @@
     URL.revokeObjectURL(url);
   }
 
+  // ============ UTIL ============
   function setBusy(value) {
-    $("#loginButton").disabled = value;
-    $("#refreshButton").disabled = value;
-    $("#approveButton").disabled = value;
-    $("#rejectButton").disabled = value;
+    ["#loginButton", "#refreshButton", "#approveButton", "#rejectButton"].forEach(sel => {
+      const el = $(sel);
+      if (el) el.disabled = value;
+    });
   }
   function toast(message, type = "") {
+    const region = $("#toastRegion");
+    if (!region) { console.warn("[toast]", message); return; }
     const el = document.createElement("div");
     el.className = `toast ${type}`.trim();
     el.textContent = message;
-    $("#toastRegion").appendChild(el);
+    region.appendChild(el);
     setTimeout(() => el.remove(), 4800);
   }
   function formatDate(value) {
     if (!value) return "-";
-    return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" })
-      .format(new Date(`${value}T00:00:00`));
+    try {
+      return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" })
+        .format(new Date(`${value}T00:00:00`));
+    } catch (_) { return value; }
   }
   function formatDateId(value) {
     if (!value) return "-";
-    return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "long", year: "numeric" })
-      .format(new Date(`${value}T00:00:00`));
+    try {
+      return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "long", year: "numeric" })
+        .format(new Date(`${value}T00:00:00`));
+    } catch (_) { return value; }
   }
   function formatDateTime(value) {
     if (!value) return "-";
-    return new Intl.DateTimeFormat("id-ID", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+    try {
+      return new Intl.DateTimeFormat("id-ID", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+    } catch (_) { return value; }
   }
   function safeFilename(value) {
     return String(value).replace(/[^a-z0-9_-]+/gi, "-").replace(/-+/g, "-");
