@@ -8,6 +8,7 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
   <script src="config.js"></script>
+  <script defer src="pdf-loader.js"></script>
   <script defer src="admin.js"></script>
 </head>
 <body>
@@ -22,7 +23,12 @@
     </header>
 
     <section class="panel" id="loginPanel">
-      <div class="section-heading"><div><p class="section-kicker">Akses terbatas</p><h2>Masukkan PIN admin</h2></div></div>
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Akses terbatas</p>
+          <h2>Masukkan PIN admin</h2>
+        </div>
+      </div>
       <div class="admin-login">
         <input class="admin-input" id="adminPin" type="password" inputmode="numeric" placeholder="PIN admin" autocomplete="current-password" />
         <button class="button button--primary" id="loginButton">Buka riwayat</button>
@@ -71,7 +77,6 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
-  <!-- Dialog detail -->
   <dialog id="detailDialog" class="detail-dialog">
     <div class="detail-dialog__head">
       <div><p class="section-kicker" id="detailType">CHECKLIST</p><h2 id="detailTitle">Detail</h2></div>
@@ -80,7 +85,6 @@
     <div id="detailBody"></div>
   </dialog>
 
-  <!-- Dialog approval -->
   <dialog id="approveDialog" class="approve-dialog">
     <div class="detail-dialog__head">
       <div><p class="section-kicker" id="approveKicker">APPROVAL MANAJER</p><h2 id="approveTitle">Setujui checklist</h2></div>
