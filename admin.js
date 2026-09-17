@@ -36,22 +36,104 @@
     $("#approveButton").addEventListener("click", () => submitApproval("approve"));
     $("#rejectButton").addEventListener("click", () => submitApproval("reject"));
 
-    setupSignPad();
+    function setupSignPad() {
+  const canvas = $("#approveSignature");
+  const wrap = $("#approveWrap");
+  const ctx = canvas.getContext("2d");
+  const state = { drawing: false, signed: false, lastX: 0, lastY: 0 };
 
-    const params = new URLSearchParams(location.search);
-    const approveId = params.get("approve");
-    const type = params.get("type");
-    const token = params.get("token");
-    if (approveId && type) {
-      approveAuth.token = token || "";
-      approveTarget = { id: approveId, type: type };
-      $("#loginPanel").hidden = false;
-      $("#recordsPanel").hidden = true;
-      const loginHeading = $("#loginPanel .section-heading h2");
-      if (loginHeading) loginHeading.textContent = "Masukkan PIN untuk approval";
-      setTimeout(() => $("#adminPin").focus(), 200);
+  const resize = () => {
+    const existing = state.signed ? canvas.toDataURL("image/png") : null;
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const rect = canvas.getBoundingClientRect();
+
+    // Guard: kalau dialog belum terbuka (rect 0), JANGAN reset canvas ke 0x0
+    if (rect.width < 1 || rect.height < 1) return;
+
+    canvas.width = Math.floor(rect.width * ratio);
+    canvas.height = Math.floor(rect.height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = "#17211f";
+    ctx.fillStyle = "#17211f";
+
+    if (existing) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width / ratio, canvas.height / ratio);
+      };
+      img.src = existing;
     }
-  }
+  };
+
+  const point = event => {
+    const rect = canvas.getBoundingClientRect();
+    const source = (event.touches && event.touches[0]) || event;
+    return {
+      x: (source.clientX - rect.left) * (canvas.width / rect.width) / (window.devicePixelRatio || 1),
+      y: (source.clientY - rect.top) * (canvas.height / rect.height) / (window.devicePixelRatio || 1)
+    };
+  };
+
+  canvas.addEventListener("pointerdown", event => {
+    event.preventDefault();
+    try { canvas.setPointerCapture(event.pointerId); } catch (_) {}
+    const p = point(event);
+    state.drawing = true;
+    state.lastX = p.x;
+    state.lastY = p.y;
+    // titik awal, supaya tap singkat tetap terlihat
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 1.1, 0, Math.PI * 2);
+    ctx.fill();
+    state.signed = true;
+    wrap.classList.add("signed");
+  });
+
+  canvas.addEventListener("pointermove", event => {
+    if (!state.drawing) return;
+    event.preventDefault();
+    const p = point(event);
+    ctx.beginPath();
+    ctx.moveTo(state.lastX, state.lastY);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    state.lastX = p.x;
+    state.lastY = p.y;
+    state.signed = true;
+    wrap.classList.add("signed");
+  });
+
+  canvas.addEventListener("pointerup", event => {
+    if (!state.drawing) return;
+    try { canvas.releasePointerCapture(event.pointerId); } catch (_) {}
+    state.drawing = false;
+  });
+  canvas.addEventListener("pointercancel", () => { state.drawing = false; });
+  canvas.addEventListener("pointerleave", () => { /* tetap gambar selama capture */ });
+
+  window.addEventListener("resize", () => setTimeout(resize, 180));
+
+  // Jangan resize di sini karena dialog masih hidden — akan dipanggil dari openApprovalDialog
+  setTimeout(resize, 50);
+
+  signPad = {
+    clear() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      state.signed = false;
+      wrap.classList.remove("signed");
+    },
+    dataUrl() {
+      return state.signed ? canvas.toDataURL("image/png") : "";
+    },
+    resize() {
+      resize();
+    }
+  };
+}
 
   async function login() {
     adminPin = $("#adminPin").value.trim();
@@ -210,36 +292,46 @@
   }
 
   async function openApprovalDialog(record) {
-    currentRecord = record;
-    $("#approveKicker").textContent = `${record.formLabel || "Checklist"} — ${record.submissionId || ""}`;
-    $("#approveTitle").textContent = "Setujui checklist";
-    $("#approveName").value = "";
-    $("#approveNote").value = "";
-    signPad && signPad.clear();
+  currentRecord = record;
+  $("#approveKicker").textContent = `${record.formLabel || "Checklist"} — ${record.submissionId || ""}`;
+  $("#approveTitle").textContent = "Setujui checklist";
+  $("#approveName").value = "";
+  $("#approveNote").value = "";
+  signPad && signPad.clear();
 
-    $("#approveSummary").innerHTML = `
-      <div><strong>Tanggal</strong><span>${escapeHtml(formatDate(record.executionDate))}</span></div>
-      <div><strong>PIC</strong><span>${escapeHtml(record.picName || "-")}</span></div>
-      <div><strong>Status</strong><span>${escapeHtml((record.summary && record.summary.overallStatus) || "-")}</span></div>
-      <div><strong>Yes / No</strong><span>${Number((record.summary && record.summary.yes) || 0)} / ${Number((record.summary && record.summary.no) || 0)}</span></div>
-    `;
-    $("#approveDialog").showModal();
+  $("#approveSummary").innerHTML = `
+    <div><strong>Tanggal</strong><span>${escapeHtml(formatDate(record.executionDate))}</span></div>
+    <div><strong>PIC</strong><span>${escapeHtml(record.picName || "-")}</span></div>
+    <div><strong>Status</strong><span>${escapeHtml((record.summary && record.summary.overallStatus) || "-")}</span></div>
+    <div><strong>Yes / No</strong><span>${Number((record.summary && record.summary.yes) || 0)} / ${Number((record.summary && record.summary.no) || 0)}</span></div>
+  `;
+  $("#approveDialog").showModal();
 
-    if (!record.signatureImages) {
-      try {
-        const result = await apiCall({
-          action: "get",
-          checklistType: record.checklistType,
-          submissionId: record.submissionId,
-          adminPin: approveAuth.pin
-        });
-        if (result.ok && result.record) {
-          currentRecord = result.record;
-        }
-      } catch (_) { /* lanjut dengan record yang ada */ }
-    }
+  // === FIX UTAMA ===
+  // Paksa canvas punya ukuran setelah dialog terlihat.
+  // Dua kali panggilan supaya layout settle dulu (webkit mobile kadang butuh dua frame).
+  const forceResize = () => { if (signPad && signPad.resize) signPad.resize(); };
+  requestAnimationFrame(() => {
+    forceResize();
+    setTimeout(forceResize, 120);
+  });
+
+  if (!record.signatureImages) {
+    try {
+      const result = await apiCall({
+        action: "get",
+        checklistType: record.checklistType,
+        submissionId: record.submissionId,
+        adminPin: approveAuth.pin
+      });
+      if (result.ok && result.record) {
+        currentRecord = result.record;
+        // resize sekali lagi karena konten bertambah setelah record lengkap
+        setTimeout(forceResize, 80);
+      }
+    } catch (_) { /* lanjut dengan record yang ada */ }
   }
-
+}
   async function submitApproval(mode) {
     if (!currentRecord) return;
     const managerName = $("#approveName").value.trim();
